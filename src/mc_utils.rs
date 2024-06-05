@@ -3,8 +3,11 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::{fs, io};
+use std::{fs};
 use thiserror::Error;
+use serde_json::{self, Value};
+use std::fs::File;
+use std::io::{self, Read};
 
 // Keeps track and manages data about the minecraft Resource Pack Structure
 pub struct DataManager {
@@ -95,7 +98,7 @@ fn find_valid_pack<'a>(
             && valid_pack.version == process_version_array(&global_pack.version)
         {
             return Some(valid_pack);
-        }
+        } 
     }
     None
 }
@@ -110,8 +113,23 @@ fn process_version_array(version: &Vec<u32>) -> String {
 fn scan_pack(path: &str, subpack: Option<String>) -> Result<HashMap<OsString, PathBuf>, io::Error> {
     log::trace!("Scanning path: {}", path);
     let mut found_paths = HashMap::new();
+    let home_path = Path::new(path).join("manifest.json");
     let mut main_path = Path::new(path).join("renderer");
     main_path.push("materials");
+    
+    if let Ok(mut file) = File::open(&home_path) {
+      let mut content = String::new();
+      file.read_to_string(&mut content)?;
+      let manifest_content: Value = serde_json::from_str(&content)?;
+
+      // Check if header.name is "Newb X Legacy"
+      if let Some(header_name) = manifest_content["header"]["name"].as_str() {
+        if header_name == "Newb X Legacy" {
+          return Ok(found_paths);
+        }
+      }
+    }
+    
     if main_path.is_dir() {
         found_paths.extend(scan_path(&main_path)?);
         log::info!("Main path had shaders");
